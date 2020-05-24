@@ -1,0 +1,22 @@
+[
+    {
+		"Key": "ContactGroup",
+		"Value": "AWS"
+	},
+    {
+		"Key": "ResourceOwner",
+		"Value": "Sai Doppalapudi"
+	},
+    {
+		"Key": "CostCenter",
+		"Value": "xx-xxx"
+	},
+    {
+		"Key": "Customer",
+		"Value": "Portals"
+	},
+    {
+		"Key": "Application",
+		"Value": "portals"
+	}
+]

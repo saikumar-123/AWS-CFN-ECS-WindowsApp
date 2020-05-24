@@ -1,0 +1,194 @@
+Description: >
+    This template creates the private Subnets for the Applications. 
+    
+Parameters:
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+        
+    PortalsSub01CIDR:
+      Type: String
+
+    PortalsSub02CIDR:
+      Type: String
+
+    PortalsSub03CIDR:
+      Type: String
+      
+    NatGatewayId:
+      Type: String
+      
+    VPNGatewayId:
+      Type: String      
+ 
+    SharedServicesPeeringConnectionId:
+      Type: String  
+    
+    VPC:
+      Description: Choose which VPC this ECS cluster should be deployed to
+      Type: AWS::EC2::VPC::Id
+
+Resources:
+###############################################################################
+# SHARED SUB 01
+  PortalsSub01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PortalsSub01CIDR
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: us-west-2a
+      Tags:
+        - Key: Name
+          Value: !Sub Portals-Public-Sub01-${EnvironmentName}
+
+        # Add Infrastructure Keys
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ContactGroup
+          Value: AWS
+        - Key: ResourceOwner
+          Value: SAI
+        - Key: CostCenter
+          Value: xx-xxx
+        - Key: Customer
+          Value: Portals
+        - Key: Application
+          Value: Portals
+
+  PortalsSub01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref SharedSubRouteTable
+      SubnetId: !Ref PortalsSub01
+
+###############################################################################
+# SHARED SUB 02
+  PortalsSub02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PortalsSub02CIDR
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: us-west-2b
+      Tags:
+        - Key: Name
+          Value: !Sub Portals-Public-Sub01-${EnvironmentName}
+
+        # Add Infrastructure Keys
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ContactGroup
+          Value: AWS
+        - Key: ResourceOwner
+          Value: SAI
+        - Key: CostCenter
+          Value: xx-xxx
+        - Key: Customer
+          Value: Portals
+        - Key: Application
+          Value: Portals
+
+  PortalsSub02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref SharedSubRouteTable
+      SubnetId: !Ref PortalsSub02
+
+###############################################################################
+# SHARED SUB 03
+  PortalsSub03:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PortalsSub03CIDR
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: us-west-2c
+      Tags:
+        - Key: Name
+          Value: !Sub Portals-Public-Sub01-${EnvironmentName}
+
+        # Add Infrastructure Keys
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ContactGroup
+          Value: AWS
+        - Key: ResourceOwner
+          Value: SAI
+        - Key: CostCenter
+          Value: xx-xxx
+        - Key: Customer
+          Value: Portals
+        - Key: Application
+          Value: Portals
+
+  PortalsSub03RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref SharedSubRouteTable
+      SubnetId: !Ref PortalsSub03
+
+###############################################################################
+# ROUTE TABLE
+  SharedSubRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub Portals-Public-Sub01-${EnvironmentName}
+
+        # Add Infrastructure Keys
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ContactGroup
+          Value: AWS
+        - Key: ResourceOwner
+          Value: SAI
+        - Key: CostCenter
+          Value: xx-xxx
+        - Key: Customer
+          Value: Portals
+        - Key: Application
+          Value: Portals
+
+  SharedDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayId
+      RouteTableId: !Ref SharedSubRouteTable
+      
+  ServicesPeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.128.0.0/16
+      VpcPeeringConnectionId: !Ref SharedServicesPeeringConnectionId
+      RouteTableId: !Ref SharedSubRouteTable     
+      
+  RouteTablePropogation:   
+    Type: AWS::EC2::VPNGatewayRoutePropagation 
+    Properties: 
+      RouteTableIds:
+        - !Ref SharedSubRouteTable
+      VpnGatewayId: !Ref VPNGatewayId        
+
+
+###############################################################################
+# Outputs
+Outputs:
+    PortalsSub01:
+      Value: !Ref PortalsSub01
+
+    PortalsSub02:
+      Value: !Ref PortalsSub02
+
+    PortalsSub03:
+      Value: !Ref PortalsSub03
+
+    PrivateSubnets:
+        Description: A list of the private subnets
+        Value: !Join [ ",", [ !Ref PortalsSub01, !Ref PortalsSub02, !Ref PortalsSub03]]
+        Export: 
+          Name: !Sub PortalsPrivateSubnets-${EnvironmentName}

@@ -1,0 +1,180 @@
+Description: >
+    This template produces the security groups required by our entire stack.
+    We create them in a seperate nested template, so they can be referenced
+    by all of the other nested templates.
+
+Parameters:
+    
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+    
+    VPC:
+        Type: AWS::EC2::VPC::Id
+        Description: Choose which VPC the security groups should be deployed to
+
+Resources:
+
+    PortalsCommonSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+            VpcId: !Ref VPC
+            GroupDescription: Common Portals Security group with access to ECS/EMR hosts and the tasks/containers that run on them
+            Tags: 
+                - Key: Name
+                  Value: !Sub Portals-${EnvironmentName}-Security-Group
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: SAI
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: Portals
+    
+    # This security group defines who/where is allowed to access the ECS hosts directly.
+    # By default we're just allowing access from the load balancer.  If you want to SSH 
+    # into the hosts, or expose non-load balanced services you can open their ports here.
+    PortalsLoadBalancerSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+            VpcId: !Ref VPC
+            GroupDescription: Load Balancer Portals Security group with access to ECS/EMR hosts and the tasks/containers that run on them
+            Tags: 
+                - Key: Name
+                  Value: !Sub Portals-${EnvironmentName}-Security-Group
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: SAI
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: Portals
+                  
+    LoadBalancerReferencingSecurityGroupIngress:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          SourceSecurityGroupId: !Ref PortalsLoadBalancerSecurityGroup
+    
+    LoadBalancerIngress:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsLoadBalancerSecurityGroup
+          CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+    
+    SelfReferencingSecurityGroupIngress:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          SourceSecurityGroupId: !Ref PortalsCommonSecurityGroup
+          
+    CIDRGroupIngress1:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 172.20.251.0/24 
+
+    CIDRGroupIngress2:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 172.20.247.0/24
+   
+    CIDRGroupIngress3:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 172.20.248.0/23
+          
+    CIDRGroupIngress3:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 172.16.0.0/12      
+          
+    CIDRGroupIngress4:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 10.80.0.0/16
+          
+    CIDRGroupIngress5:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 10.5.0.0/16
+          
+    CIDRGroupIngress6:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 10.144.0.0/16
+          
+    CIDRGroupIngress7:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 10.4.0.0/16
+          
+    CIDRGroupIngress8:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 10.128.0.0/16
+          
+    CIDRGroupIngress9:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          CidrIp: 10.0.0.0/8
+          
+    InfrastructureAdminGroupIngress:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          SourceSecurityGroupId: !ImportValue ConnSG
+          
+    InfrastructureSecurityControlsGroupIngress:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:       
+          GroupId: !Ref PortalsCommonSecurityGroup
+          IpProtocol: -1
+          SourceSecurityGroupId: !ImportValue SecuritySG
+
+Outputs:
+
+    PortalsCommonSecurityGroup: 
+        Description: A reference to the security group for ECS hosts
+        Value: !Ref PortalsCommonSecurityGroup
+        Export: 
+          Name: !Sub PortalsCommonSecurityGroup-${EnvironmentName}
+
+    PortalsLoadBalancerSecurityGroup: 
+        Description: A reference to the security group for Load Balancer
+        Value: !Ref PortalsLoadBalancerSecurityGroup
+        Export: 
+          Name: !Sub PortalsLoadBalancerSecurityGroup-${EnvironmentName}

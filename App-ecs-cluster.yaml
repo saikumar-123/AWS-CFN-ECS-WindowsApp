@@ -1,0 +1,311 @@
+Description: >
+    This template deploys a Portals ECS cluster to the provided VPC and subnets using an Auto Scaling Group
+
+Parameters:
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+
+    InstanceType: 
+        Description: Which instance type should we use to build the ECS cluster?
+        Type: String
+        Default: m4.large
+
+    ClusterSize:
+        Description: How many ECS hosts do you want to initially deploy?
+        Type: Number
+        Default: 3
+
+    VPC:
+        Description: Choose which VPC this ECS cluster should be deployed to
+        Type: AWS::EC2::VPC::Id
+
+    Subnets:
+        Description: Choose which subnets this ECS cluster should be deployed to
+        Type: List<AWS::EC2::Subnet::Id>
+
+    SecurityGroup:
+        Description: Select the Security Group to use for the ECS cluster hosts
+        Type: AWS::EC2::SecurityGroup::Id
+        
+    KeyPair: 
+        Description: 'Name of an existing EC2 KeyPair to enable SSH access to the ECS instances'
+        Type: AWS::EC2::KeyPair::KeyName
+        
+    InfrastructureAMIId:
+        Description: The AMI Fetched From Infrastructure
+        Type: String
+
+Resources:
+
+    PortalsECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: !Sub portals-${EnvironmentName}
+
+    ECSAutoScalingGroup: 
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+            VPCZoneIdentifier: !Ref Subnets
+            LaunchConfigurationName: !Ref PortalsECSLaunchConfiguration
+            MinSize: !Ref  ClusterSize
+            MaxSize: 20 
+            DesiredCapacity: !Ref ClusterSize
+            MetricsCollection: 
+              - Granularity: "1Minute"
+            Tags: 
+                - Key: Name
+                  Value: !Sub Portals ${EnvironmentName} Windows ECS host  
+                  PropagateAtLaunch: true
+                - Key: elasticEnv
+                  Value: !Ref EnvironmentName
+                  PropagateAtLaunch: true
+                  
+                  # Add Infrastructure Keys
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                  PropagateAtLaunch: true
+                - Key: ContactGroup
+                  Value: AWS
+                  PropagateAtLaunch: true
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                  PropagateAtLaunch: true
+                - Key: CostCenter
+                  Value: xx-xxx
+                  PropagateAtLaunch: true
+                - Key: Customer
+                  Value: Portals
+                  PropagateAtLaunch: true
+                - Key: Application
+                  Value: Portals
+                  PropagateAtLaunch: true
+        CreationPolicy:
+            ResourceSignal: 
+                Timeout: PT30M
+        UpdatePolicy:
+            AutoScalingRollingUpdate:
+                MinInstancesInService: 1
+                MaxBatchSize: 1
+                PauseTime: PT15M
+                WaitOnResourceSignals: true
+        
+    PortalsECSLaunchConfiguration:
+        Type: AWS::AutoScaling::LaunchConfiguration 
+        Properties:
+            ImageId:  !Ref InfrastructureAMIId
+            InstanceType: !Ref InstanceType
+            AssociatePublicIpAddress: false                                      
+            SecurityGroups: 
+                - !Ref SecurityGroup
+                - !ImportValue ConnSG
+            KeyName: !Ref KeyPair
+            IamInstanceProfile: !Ref ECSInstanceProfile
+            UserData: 
+                "Fn::Base64": !Sub |
+                    <script>
+                        powershell Import-Module ECSTools
+                        powershell Initialize-ECSAgent -Cluster 'portals-${EnvironmentName}' -EnableTaskIAMRole  
+                        setx ECS_CLUSTER ${PortalsECSCluster} /m
+                        cd C:\
+                        powershell .\InstallEC2ContainerAgent.ps1
+                        cfn-init.exe -v --region ${AWS::Region} --stack ${AWS::StackName} --resource PortalsECSLaunchConfiguration
+                        cfn-signal.exe -e %ERRORLEVEL% --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSAutoScalingGroup  
+                    </script>
+                    <persist>true</persist>           
+
+        Metadata:
+            AWS::CloudFormation::Init: 
+                config:
+                    files:                
+                        'C:\cfn\cfn-hup.conf':
+                            content: !Sub |
+                                [main]
+                                stack=${AWS::StackId}
+                                region=${AWS::Region}
+                        
+                        'C:\cfn\hooks.d\cfn-auto-reloader.conf':
+                            content: !Sub |
+                                [cfn-auto-reloader-hook]
+                                triggers=post.update
+                                path=Resources.PortalsECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init
+                                action=cfn-init.exe -v --region ${AWS::Region} --stack ${AWS::StackName} --resource PortalsECSLaunchConfiguration
+
+                    services: 
+                        windows: 
+                            cfn-hup: 
+                                enabled: true
+                                ensureRunning: true
+                                files: 
+                                    - 'C:\cfn\cfn-hup.conf'
+                                    - 'C:\cfn\hooks.d\cfn-auto-reloader.conf'
+
+    # PortalsECSAutoScalingGroup:
+    #     Type: AWS::AutoScaling::AutoScalingGroup
+    #     Properties: 
+    #         VPCZoneIdentifier: !Ref Subnets
+    #         LaunchConfigurationName: !Ref PortalsECSLaunchConfiguration
+    #         MinSize: !Ref ClusterSize
+    #         MaxSize: 9  
+    #         DesiredCapacity: !Ref ClusterSize
+    #         MetricsCollection: 
+    #           - Granularity: "1Minute"
+    #         Tags: 
+    #             - Key: Name
+    #               Value: !Sub portals-${EnvironmentName} ECS host
+    #               PropagateAtLaunch: true
+                  
+    #               # Add Infrastructure Keys
+    #             - Key: Environment
+    #               Value: !Ref EnvironmentName
+    #               PropagateAtLaunch: true
+    #             - Key: ContactGroup
+    #               Value: AWS
+    #               PropagateAtLaunch: true
+    #             - Key: ResourceOwner
+    #               Value: sai Doppalapudi
+    #               PropagateAtLaunch: true
+    #             - Key: CostCenter
+    #               Value: xx-xxx
+    #               PropagateAtLaunch: true
+    #             - Key: Customer
+    #               Value: Portals
+    #               PropagateAtLaunch: true
+    #             - Key: Application
+    #               Value: Portals
+    #               PropagateAtLaunch: true
+    #     CreationPolicy:
+    #         ResourceSignal: 
+    #             Timeout: PT20M
+    #     UpdatePolicy:
+    #         AutoScalingRollingUpdate:
+    #             MinInstancesInService: 1
+    #             MaxBatchSize: 1
+    #             PauseTime: PT20M
+    #             WaitOnResourceSignals: true 
+        
+    # PortalsECSLaunchConfiguration:
+    #     Type: AWS::AutoScaling::LaunchConfiguration 
+    #     Properties:
+    #         ImageId:  !Ref InfrastructureAMIId
+    #         InstanceType: !Ref InstanceType
+    #         AssociatePublicIpAddress: false
+    #         BlockDeviceMappings:
+    #             - DeviceName: "/dev/xvdc"
+    #               Ebs:
+    #                   DeleteOnTermination: true
+    #                   Encrypted: true
+    #                   VolumeSize: 500
+    #                   VolumeType: gp2
+                                                                                
+    #         SecurityGroups: 
+    #             - !Ref SecurityGroup
+    #             - !ImportValue ConnSG
+    #         KeyName: !Ref KeyPair
+    #         IamInstanceProfile: !Ref ECSInstanceProfile
+    #         UserData: 
+    #             "Fn::Base64": !Sub |
+    #                 <powershell>
+    #                     Import-Module ECSTools
+    #                     Initialize-ECSAgent -Cluster 'portals-${EnvironmentName}' -EnableTaskIAMRole
+    #                 </powershell>
+
+    #     Metadata:
+    #         AWS::CloudFormation::Init:
+    #             config:
+    #                 files:                
+    #                     "c:\\cfn\\cfn-hup.conf":
+    #                         content: !Sub |
+    #                             [main]
+    #                             stack=${AWS::StackId}
+    #                             region=${AWS::Region}
+                        
+    #                     "c:\\cfn\\hooks.d\\cfn-auto-reloader.conf":
+    #                         content: !Sub |
+    #                             [cfn-auto-reloader-hook]
+    #                             triggers=post.update
+    #                             path=Resources.ContainerInstances.Metadata.AWS::CloudFormation::Init
+    #                             action=cfn-init.exe -v --region ${AWS::Region} --stack ${AWS::StackName} --resource PortalsECSLaunchConfiguration
+
+    #                 services: 
+    #                     sysvinit:
+    #                         cfn-hup: 
+    #                             enabled: true
+    #                             ensureRunning: true
+    #                             files: 
+    #                                 - c:\\cfn\\cfn-hup.conf
+    #                                 - c:\\cfn\\hooks.d\\cfn-auto-reloader.conf
+
+    # This IAM Role is attached to all of the ECS hosts. It is based on the default role
+    # published here:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/instance_IAM_role.html
+    #
+    # You can add other IAM policy statements here to allow access from your ECS hosts
+    # to other AWS services. Please note that this role will be used by ALL containers
+    # running on the ECS host.
+
+    ECSRole: 
+        Type: AWS::IAM::Role 
+        Properties:  
+            Path: / 
+            RoleName: !Sub portals-${EnvironmentName}-ECSRole-${AWS::Region} 
+            AssumeRolePolicyDocument: | 
+                {
+                    "Statement": [{ 
+                        "Action": "sts:AssumeRole", 
+                        "Effect": "Allow", 
+                        "Principal": {  
+                            "Service": "ec2.amazonaws.com"  
+                        }
+                    }]
+                }
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+                - arn:aws:iam::aws:policy/service-role/AmazonSSMMaintenanceWindowRole
+            Policies:  
+                - PolicyName: ecs-service 
+                  PolicyDocument: |
+                    {
+                        "Statement": [{ 
+                            "Effect": "Allow", 
+                            "Action": [ 
+                                "ecs:CreateCluster", 
+                                "ecs:DeregisterContainerInstance", 
+                                "ecs:DiscoverPollEndpoint",
+                                "ecs:Poll", 
+                                "ecs:RegisterContainerInstance",
+                                "ecs:StartTelemetrySession",
+                                "ecs:Submit*",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents",
+                                "ecr:BatchCheckLayerAvailability",
+                                "ecr:BatchGetImage",
+                                "ecr:GetDownloadUrlForLayer",
+                                "ecr:GetAuthorizationToken",
+                                "s3:*",
+                                "logs:CreateLogGroup",
+                                "logs:DescribeLogGroups",
+                                "logs:DescribeLogStreams",
+                                "cloudwatch:PutMetricData",
+                                "cloudwatch:GetMetricStatistics",
+                                "cloudwatch:ListMetrics",
+                                "ec2:DescribeTags"
+                            ],
+                            "Resource": "*" 
+                        }]
+                    }
+
+    ECSInstanceProfile: 
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+            Path: /
+            Roles: 
+                - !Ref ECSRole
+                                        
+
+Outputs:
+
+    Cluster:
+        Description: A reference to the ECS cluster
+        Value: !Ref PortalsECSCluster

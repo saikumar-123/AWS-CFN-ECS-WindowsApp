@@ -1,0 +1,116 @@
+Description: >
+    This template deploys an Application Load Balancer.
+
+Parameters:
+
+    Name:
+        Type: String
+        Description: Name of the load balancer
+        
+    EnvironmentName:
+        Type: String
+        Description: An environment name that will be prefixed to resource names        
+
+    VPC:
+        Type: AWS::EC2::VPC::Id
+        Description: Choose which VPC the Applicaion Load Balancer should be deployed to
+
+    Subnets:
+        Type: List<AWS::EC2::Subnet::Id>
+        Description: Choose which subnet the Applicaion Load Balancer should be deployed to
+        
+    SecurityGroup:
+        Type: AWS::EC2::SecurityGroup::Id
+        Description: Select the Security Group to apply to the Applicaion Load Balancer
+        
+    Scheme:
+        Type: String
+        Description: Load Balancer Schema
+
+Mappings:
+    # reference to certificate (dev & qa)
+    SecurityCertArnEnv:
+      dev: 
+        arn: arn:aws:acm:us-west-2:728748506156:certificate/8911d42a-0046-4b67-b880-a03b0643180a
+      qa:
+        arn: arn:aws:acm:us-west-2:728748506156:certificate/8911d42a-0046-4b67-b880-a03b0643180a
+      stage:
+        arn: arn:aws:acm:us-west-2:741029237799:certificate/14f474db-2a2e-40e1-b046-c7fc0b032df3
+      prod:
+        arn: arn:aws:acm:us-west-2:741029237799:certificate/14f474db-2a2e-40e1-b046-c7fc0b032df3
+
+Resources:
+
+    LoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: !Sub ${Name}-${EnvironmentName}-LB
+            Scheme: !Ref Scheme
+            Subnets: !Ref Subnets
+            SecurityGroups: 
+                - !Ref SecurityGroup
+                - !ImportValue ConnSG
+            Tags: 
+                - Key: Name
+                  Value: !Sub ${Name}-${EnvironmentName}-LB
+                  
+                  # Add Infrastructure Keys
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                  
+                - Key: ContactGroup
+                  Value: AWS
+                  
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                  
+                - Key: CostCenter
+                  Value: xx-xxx
+                  
+                - Key: Customer
+                  Value: Portals
+                  
+                - Key: Application
+                  Value: Portals
+                  
+
+            
+    SecureLoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            Certificates: 
+              - CertificateArn: !FindInMap [SecurityCertArnEnv, !Ref EnvironmentName, arn]
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 443
+            Protocol: HTTPS
+            DefaultActions: 
+                - Type: forward
+                  TargetGroupArn: !Ref SecureDefaultTargetGroup
+
+    SecureDefaultTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: !Sub ${Name}-${EnvironmentName}-TG
+            VpcId: !Ref VPC
+            Port: 443
+            Protocol: HTTPS
+          
+Outputs:
+
+    LoadBalancer:
+        Description: A reference to the Application Load Balancer
+        Value: !Ref LoadBalancer
+        Export:
+            Name: !Sub ${Name}-${EnvironmentName}-LB
+
+    LoadBalancerUrl:
+        Description: The URL of the ALB
+        Value: !GetAtt LoadBalancer.DNSName
+        Export:
+            Name: !Sub ${Name}-${EnvironmentName}-Url
+
+    SecureListener:
+        Description: A reference to a port 443 listener
+        Value: !Ref SecureLoadBalancerListener
+        Export:
+            Name: !Sub ${Name}-${EnvironmentName}-Listener

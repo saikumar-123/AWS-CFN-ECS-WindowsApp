@@ -1,0 +1,371 @@
+Description: >
+
+    This template deploys Windows Application,  Security Groups, Subnets.
+
+    Last Modified: 20th March 2019
+    Author: Sai Kumar Doppalapudi
+    
+
+Parameters:
+
+    VPC:
+        Description: Choose which VPC to Deploy the Portals Resources
+        Type: AWS::EC2::VPC::Id   
+        Default: vpc-xxxxxxxx  
+        
+    EnvironmentName:
+        Description: The Environment that is relevant to this Environmental Deployment e.g. (dev, qa, stage, prod)
+        Type: String
+        Default: dev
+        
+    CloudFormationTemplateS3UrlBasePath: 
+        Description: Where are the CloudFormation Templates
+        Type: String
+        Default: https://s3.amazonaws.com/portals-dev/cloudformation
+     
+    PrivateSubnetZoneACIDRblock:
+        Description: The CIDR Block Range for the Zone A Private Subnet e.g. ( 10.144.74.0/24 ) 
+        Type: String
+        Default: 10.xxx.x.128/26
+
+    PrivateSubnetZoneBCIDRblock: 
+        Description: The CIDR Block Range for the Zone A Private Subnet e.g. ( 10.144.74.0/24 ) 
+        Type: String   
+        Default: 10.xxx.xxx.0/24 
+        
+    PrivateSubnetZoneCCIDRblock: 
+        Description: The CIDR Block Range for the Zone A Private Subnet e.g. ( 10.144.74.0/24 ) 
+        Type: String   
+        Default: 10.xxx.xxx.0/24 
+
+    PrivateSubnetNatGatewayIdentfier: 
+        Description: The NAT Gateway Identifier for the Private Subnets Route Table e.g. ( nat-06d79e7c9acbe1821 )
+        Type: String
+        Default: nat-xxxxxxxxxxx
+
+    PublicSubnetInternetGatewayId:
+        Description: The public subnet internet gateway id
+        Type: String
+        Default: igw-xxxxxxx
+
+    PublicSubnetZoneACIDRblock:
+        Description: The CIDR Block Range for the Zone A Private Subnet e.g. ( 10.144.74.0/24 ) 
+        Type: String
+        Default: 10.xxx.xxx.0/24
+
+    PublicSubnetZoneBCIDRblock: 
+        Description: The CIDR Block Range for the Zone A Private Subnet e.g. ( 10.144.74.0/24 ) 
+        Type: String   
+        Default: 10.xxx.xxx.0/24 
+        
+    PublicSubnetZoneCCIDRblock: 
+        Description: The CIDR Block Range for the Zone A Private Subnet e.g. ( 10.144.74.0/24 ) 
+        Type: String   
+        Default: 10.xxx.xxx.0/24 
+
+    AllSubnetSharedServicesPeeringConnectionId:
+      Description: The Peering Connection to the Shared Services VPC e.g. ( pcx-6a800c03 )
+      Type: String 
+      Default: pcx-xxxxx
+      
+    AllSubnetVPNGatewayIdentfier: 
+        Description: The VPN Gateway Identifier for the Private Subnets Route Table e.g. ( vgw-37518929 )
+        Type: String
+        Default: vgw-xxxxxx
+
+    Route53HostedZoneID: 
+        Description: The Hosted Zone ID for the Given Environment e.g. ( Z2CKDACT2D73U7 )
+        Type: String
+        Default: Z3LIHJNMTM7HB6
+        
+    Route53HostedZoneSubDomainName: 
+        Description: THe Hosted Zone SubDomain name for the Given Environment e.g. (nonprod.aws.com)
+        Type: String
+        Default: xxxx.io  
+
+    KeyPair: 
+        Description: Name of an existing EC2 KeyPair to enable SSH access to the ECS instances
+        Type: AWS::EC2::KeyPair::KeyName
+        Default: portals
+
+    Application:
+        Description: Application name
+        Type: String
+
+    AutoscalingAMIId:
+        Description: Default AWS Windows Cluster image
+        Type: String
+        Default: ami-a7ec08c0
+
+    AutoscalingInstanceType: 
+        Description: Select the InstanceType for the Autoscaling Hosts underlying the ECS Cluster
+        Type: String
+        Default: m4.xlarge
+        AllowedValues:
+          - m4.medium
+          - m4.large
+          - m4.xlarge
+          - m4.2xlarge
+          - m4.4xlarge          
+   
+    AutoscalingClusterSize: 
+        Description: Select  the Desired Count of EC2 Hosts for the Underlying Autoscaling Group
+        Type: Number
+        Default: 3
+
+    VaultToken:
+      Description: The vault token
+      Type: String   
+
+    AwsAccount:
+        Description: AWS account name
+        Type: String
+
+    BranchName:
+        Description: Name of the branch the code is coming from
+        Type: String
+
+Resources:
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # Build the  subnets and security groups First. We will inject the output into other resources. 
+    # -----------------------------------------------------------------------------------------------------------------------------------------------    
+    
+    
+    PortalsPrivateSubnets:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-private-subnets.yaml        
+            Parameters: 
+                EnvironmentName: !Ref EnvironmentName
+                VPC: !Ref VPC
+                PortalsSub01CIDR: !Ref PrivateSubnetZoneACIDRblock
+                PortalsSub02CIDR: !Ref PrivateSubnetZoneBCIDRblock
+                PortalsSub03CIDR: !Ref PrivateSubnetZoneCCIDRblock
+                NatGatewayId: !Ref PrivateSubnetNatGatewayIdentfier
+                VPNGatewayId: !Ref AllSubnetVPNGatewayIdentfier
+                SharedServicesPeeringConnectionId: !Ref AllSubnetSharedServicesPeeringConnectionId
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+                  
+    PortalsPublicSubnets: 
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-public-subnets.yaml        
+            Parameters: 
+                EnvironmentName: !Ref EnvironmentName
+                VPC: !Ref VPC
+                PortalsSub01CIDR: !Ref PublicSubnetZoneACIDRblock
+                PortalsSub02CIDR: !Ref PublicSubnetZoneBCIDRblock
+                PortalsSub03CIDR: !Ref PublicSubnetZoneCCIDRblock
+                InetGatewayId: !Ref PublicSubnetInternetGatewayId
+                VPNGatewayId: !Ref AllSubnetVPNGatewayIdentfier
+                SharedServicesPeeringConnectionId: !Ref AllSubnetSharedServicesPeeringConnectionId
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+                                                              
+    PortalsSecurityGroups: 
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-security-groups.yaml        
+            Parameters: 
+                EnvironmentName: !Ref EnvironmentName
+                VPC: !Ref VPC
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+
+    PortalsPublicLoadBalancers: 
+        Type: AWS::CloudFormation::Stack
+        Properties:   
+          TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-load-balancers.yaml            
+          Parameters: 
+            Name: PortalsPublic
+            EnvironmentName: !Ref EnvironmentName
+            SecurityGroup: !GetAtt PortalsSecurityGroups.Outputs.PortalsLoadBalancerSecurityGroup
+            Subnets: !GetAtt PortalsPublicSubnets.Outputs.PublicSubnets
+            Scheme: internet-facing
+            VPC: !Ref VPC
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+
+    PortalsPrivateLoadBalancers: 
+        Type: AWS::CloudFormation::Stack
+        Properties:   
+          TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-load-balancers.yaml            
+          Parameters: 
+            Name: PortalsPrivate
+            EnvironmentName: !Ref EnvironmentName
+            SecurityGroup: !GetAtt PortalsSecurityGroups.Outputs.PortalsLoadBalancerSecurityGroup
+            Subnets: !GetAtt PortalsPrivateSubnets.Outputs.PrivateSubnets
+            Scheme: internal
+            VPC: !Ref VPC
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+
+    PortalsRoute53DNSRecords: 
+        Type: AWS::CloudFormation::Stack
+        Properties:   
+          TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-Route53-RecordSets.yaml           
+          Parameters: 
+            PublicBalancerDNSName:  !GetAtt PortalsPublicLoadBalancers.Outputs.LoadBalancerUrl
+            InternalBalancerDNSName:  !GetAtt PortalsPrivateLoadBalancers.Outputs.LoadBalancerUrl
+            EnvironmentName: !Ref EnvironmentName
+            Route53HostedZoneID: !Ref Route53HostedZoneID
+            Route53HostedZoneSubDomainName: !Ref Route53HostedZoneSubDomainName
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # Create the service role used by the ECS cluster
+    # -----------------------------------------------------------------------------------------------------------------------------------------------               
+          
+    PortalsECSServiceRole: 
+        Type: AWS::CloudFormation::Stack
+        Properties:   
+          TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-ecs-service-role.yaml          
+          Parameters: 
+            EnvironmentName: !Ref EnvironmentName
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+    
+    
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # Build the ECS Cluster
+    # -----------------------------------------------------------------------------------------------------------------------------------------------               
+          
+    PortalsECSCluster: 
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/components/portals-ecs-cluster.yaml        
+            Parameters: 
+              ClusterSize: !Ref AutoscalingClusterSize
+              EnvironmentName: !Ref EnvironmentName
+              InfrastructureAMIId:  !Ref AutoscalingAMIId
+              InstanceType: !Ref AutoscalingInstanceType
+              KeyPair: !Ref KeyPair
+              SecurityGroup: 
+                Fn::ImportValue: !Sub PortalsCommonSecurityGroup-${EnvironmentName}
+              Subnets: 
+                Fn::ImportValue: !Sub PortalsPrivateSubnets-${EnvironmentName}
+              VPC: !Ref VPC
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
+
+    PortalsPocWebsite: 
+      Type: AWS::CloudFormation::Stack
+      Properties:   
+        TemplateURL: !Sub ${CloudFormationTemplateS3UrlBasePath}/applications/portals-poc.yaml        
+        Parameters: 
+              Cluster:  !GetAtt PortalsECSCluster.Outputs.Cluster
+              DesiredCount: !Ref AutoscalingClusterSize
+              DockerEnvironmentTag:   !Ref EnvironmentName
+              Listener: 
+                Fn::ImportValue: !Sub PortalsPublic-${EnvironmentName}-Listener
+              Path:  /poc*
+              ServiceRole: !GetAtt PortalsECSServiceRole.Outputs.PortalsECSServiceRole
+              VPC: !Ref VPC
+              VaultToken: !Ref VaultToken  
+              AwsAccount: !Ref AwsAccount
+              Application: !Ref Application  
+              BranchName: !Ref BranchName 
+            Tags: 
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                - Key: ContactGroup
+                  Value: AWS
+                - Key: ResourceOwner
+                  Value: Sai Doppalapudi
+                - Key: CostCenter
+                  Value: xx-xxx
+                - Key: Customer
+                  Value: Portals
+                - Key: Application
+                  Value: !Ref Application
